@@ -97,7 +97,7 @@ async def get_ai_response(
     """
     system_prompt = _build_system_prompt(catalog, cart_summary)
     model = genai.GenerativeModel(
-        model_name="gemini-1.5-flash",
+        model_name="gemini-2.0-flash",
         system_instruction=system_prompt,
     )
 
