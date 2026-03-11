@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     PAYPAL_LINK: str = "https://paypal.me/yourshop"
     SHOP_COLLECTION_URL: str = ""
     SHOP_NAME: str = "My Awesome Shop"
+    BANNER_FILENAME: str = ""
 
 
 settings = Settings()
