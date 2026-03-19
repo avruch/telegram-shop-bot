@@ -9,7 +9,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy source
 COPY . .
 
-# Data volume — mount a Railway/Docker volume here to persist shop.db
-VOLUME ["/data"]
-
 CMD ["python", "main.py"]
