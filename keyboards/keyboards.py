@@ -4,19 +4,13 @@ from database.models import Product, Order, OrderItem
 
 
 def product_size_keyboard(product: Product) -> InlineKeyboardMarkup:
-    """Inline keyboard for selecting size and adding to cart."""
+    """Inline keyboard for a product card — size is collected via chat."""
     builder = InlineKeyboardBuilder()
-    sizes = product.available_sizes()
-    if sizes:
-        for size in sizes:
-            stock = product.stock_for_size(size)
-            builder.button(
-                text=f"{size} ({stock} left)",
-                callback_data=f"add_to_cart:{product.id}:{size}",
-            )
-        builder.adjust(3)
     builder.row(
-        InlineKeyboardButton(text="🛒 View Cart", callback_data="show_cart"),
+        InlineKeyboardButton(text="🛒 Add to Cart", callback_data=f"want_product:{product.id}"),
+    )
+    builder.row(
+        InlineKeyboardButton(text="👜 View Cart", callback_data="show_cart"),
         InlineKeyboardButton(text="📦 All Products", callback_data="show_collection"),
     )
     return builder.as_markup()

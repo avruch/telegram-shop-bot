@@ -1,27 +1,13 @@
+from pathlib import Path
 from aiogram import Router
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message
+from aiogram.types import Message, FSInputFile
 from aiogram.fsm.context import FSMContext
 from states.states import ShopStates
 from config import settings
+import texts
 
 router = Router()
-
-WELCOME_MESSAGE = """👋 Welcome to *{shop_name}*!
-
-I'm Alex, your personal shopping assistant. I'm here to help you find exactly what you're looking for.
-
-Here's what I can do:
-• 🛍 Show you our latest collection
-• 💬 Answer any questions about products
-• 🛒 Manage your shopping cart
-• 📦 Help you place an order
-
-Just chat with me naturally! Try saying:
-  _"Show me your products"_
-  _"I'm looking for a hoodie in size M"_
-  _"What do you have in stock?"_
-"""
 
 
 @router.message(CommandStart())
@@ -29,24 +15,23 @@ async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
     await state.set_state(ShopStates.browsing)
     await state.update_data(conversation_history=[], cart_message_id=None)
-    await message.answer(
-        WELCOME_MESSAGE.format(shop_name=settings.SHOP_NAME),
-        parse_mode="Markdown",
-    )
+
+    welcome_text = texts.WELCOME.format(shop_name=settings.SHOP_NAME)
+    banner_path = Path(__file__).parent.parent / settings.BANNER_FILENAME
+
+    if settings.BANNER_FILENAME and banner_path.exists():
+        await message.answer_photo(
+            FSInputFile(banner_path),
+            caption=welcome_text,
+            parse_mode="Markdown",
+        )
+    else:
+        await message.answer(welcome_text, parse_mode="Markdown")
 
 
 @router.message(Command("help"))
 async def cmd_help(message: Message):
-    help_text = """*Available Commands:*
-
-/start — Restart and clear conversation
-/cart — View your current cart
-/products — Browse all products
-/checkout — Begin the checkout process
-/help — Show this help message
-
-Or just chat naturally — I understand plain English! 😊"""
-    await message.answer(help_text, parse_mode="Markdown")
+    await message.answer(texts.HELP, parse_mode="Markdown")
 
 
 @router.message(Command("cart"))
@@ -67,16 +52,15 @@ async def cmd_products(message: Message, state: FSMContext):
 
     products = await get_all_products()
     if not products:
-        await message.answer("No products available right now.")
+        await message.answer(texts.NO_PRODUCTS)
         return
 
-    await message.answer("Here are all our products:\n", parse_mode="Markdown")
+    await message.answer(texts.PRODUCTS_HEADER, parse_mode="Markdown")
     for product in products:
-        caption = (
-            f"*{product.name}*\n"
-            f"{product.description}\n"
-            f"💲 *${product.price:.2f}*\n"
-            f"Available sizes: {', '.join(product.available_sizes()) or 'Out of stock'}"
+        caption = texts.PRODUCT_CAPTION.format(
+            name=product.name,
+            description=product.description,
+            price=product.price,
         )
         keyboard = product_size_keyboard(product)
         if product.image_url:

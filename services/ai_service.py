@@ -9,7 +9,9 @@ logger = logging.getLogger(__name__)
 
 genai.configure(api_key=settings.GOOGLE_API_KEY)
 
-SYSTEM_PROMPT_TEMPLATE = """You are a friendly and knowledgeable sales assistant for "{shop_name}", an online clothing store. Your name is Alex.
+RING_SIZE_GUIDE_URL = "https://www.ring-sizer.co/"
+
+SYSTEM_PROMPT_TEMPLATE = """You are a friendly and knowledgeable sales assistant for "{shop_name}", a handcrafted silver jewelry store. Your name is Alex.
 
 Your personality:
 - Warm, helpful, and enthusiastic about the products
@@ -29,6 +31,13 @@ Current product catalog:
 Current user's cart:
 {cart}
 
+SIZING RULES (very important):
+- All jewelry is made-to-order. There are NO predefined sizes — the customer types their own size freely (e.g. "7", "6.5", "8", "M", etc.)
+- ALWAYS ask for the customer's size before adding to cart if they haven't provided one
+- If the customer is unsure of their size, send them to this free online sizing tool and ask them to come back with their size:
+  {ring_size_guide}
+- Do NOT add to cart until you have a confirmed size from the customer
+
 IMPORTANT — Action System:
 When you need to perform a specific action (e.g., show a product, add to cart), include a special JSON block at the END of your response using this exact format:
 
@@ -38,7 +47,7 @@ Available actions:
 - SHOW_PRODUCT: {{"action": "SHOW_PRODUCT", "product_id": <int>}}
   Use when user asks about a specific product or wants to see it
 - ADD_TO_CART: {{"action": "ADD_TO_CART", "product_id": <int>, "size": "<size>", "quantity": <int>}}
-  Use when user clearly wants to add a specific product+size to cart
+  Use only when user has confirmed their size. Size is a free-text string provided by the customer.
 - REMOVE_FROM_CART: {{"action": "REMOVE_FROM_CART", "order_item_id": <int>}}
   Use when user wants to remove a specific item (you'll know item ids from the cart)
 - SHOW_CART: {{"action": "SHOW_CART"}}
@@ -52,9 +61,8 @@ Rules:
 1. Only include ONE action block per response
 2. Always write your conversational reply BEFORE the action block
 3. If no action is needed, omit the action block entirely
-4. Before adding to cart, confirm the size with the user if not specified
-5. If a product is out of stock in the requested size, say so and suggest alternatives
-6. When user mentions checkout/order/buy, guide them through the process
+4. NEVER add to cart without a confirmed size from the customer
+5. When user mentions checkout/order/buy, guide them through the process
 """
 
 
@@ -64,6 +72,7 @@ def _build_system_prompt(catalog: list[dict], cart_summary: str) -> str:
         shop_name=settings.SHOP_NAME,
         catalog=catalog_text,
         cart=cart_summary,
+        ring_size_guide=RING_SIZE_GUIDE_URL,
     )
 
 

@@ -1,5 +1,6 @@
 from database.db import get_db
 from database.models import Order, OrderItem
+import texts
 
 
 async def get_or_create_cart(user_id: int) -> Order:
@@ -142,12 +143,12 @@ async def _recalculate_total(db, order_id: int):
 
 def format_cart(order: Order) -> str:
     if not order.items:
-        return "🛒 Your cart is empty."
-    lines = ["🛒 *Your Cart:*\n"]
+        return texts.CART_EMPTY
+    lines = [texts.CART_HEADER]
     for item in order.items:
         name = item.product_name or f"Product #{item.product_id}"
         price = item.product_price or 0.0
         subtotal = price * item.quantity
-        lines.append(f"• {name} ({item.size}) × {item.quantity} — ${subtotal:.2f}")
-    lines.append(f"\n💰 *Total: ${order.total_price:.2f}*")
+        lines.append(texts.CART_ITEM_LINE.format(name=name, size=item.size, qty=item.quantity, subtotal=subtotal))
+    lines.append(texts.CART_TOTAL_LINE.format(total=order.total_price))
     return "\n".join(lines)

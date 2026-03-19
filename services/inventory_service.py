@@ -24,10 +24,9 @@ async def get_product(product_id: int) -> Product | None:
 
 
 async def check_stock(product_id: int, size: str, quantity: int = 1) -> bool:
+    # Made-to-order: no stock limits, just verify the product exists
     product = await get_product(product_id)
-    if not product:
-        return False
-    return product.stock_for_size(size) >= quantity
+    return product is not None
 
 
 async def deduct_stock(product_id: int, size: str, quantity: int) -> bool:

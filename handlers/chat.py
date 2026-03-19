@@ -13,6 +13,7 @@ from services.cart_service import (
 )
 from keyboards.keyboards import product_size_keyboard, cart_keyboard, collection_keyboard
 from config import settings
+import texts
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -23,11 +24,10 @@ async def _send_product_card(message: Message, product_id: int):
     if not product:
         await message.answer("Sorry, I couldn't find that product.")
         return
-    caption = (
-        f"*{product.name}*\n"
-        f"{product.description}\n"
-        f"💲 *${product.price:.2f}*\n"
-        f"Available sizes: {', '.join(product.available_sizes()) or 'Out of stock'}"
+    caption = texts.PRODUCT_CAPTION.format(
+        name=product.name,
+        description=product.description,
+        price=product.price,
     )
     keyboard = product_size_keyboard(product)
     if product.image_url:
@@ -57,9 +57,6 @@ async def _handle_action(message: Message, state: FSMContext, action: dict):
         quantity = int(action.get("quantity", 1))
 
         if not await check_stock(product_id, size, quantity):
-            await message.answer(
-                f"Sorry, that size is out of stock! Let me check what's available for you."
-            )
             await _send_product_card(message, product_id)
             return
 
@@ -134,26 +131,22 @@ async def _handle_action(message: Message, state: FSMContext, action: dict):
     elif action_name == "SHOW_COLLECTION":
         url = settings.SHOP_COLLECTION_URL
         keyboard = collection_keyboard(url)
-        await message.answer("Here's our full collection!", reply_markup=keyboard)
+        await message.answer(texts.COLLECTION_HEADER, reply_markup=keyboard)
 
     elif action_name == "START_CHECKOUT":
         cart = await get_or_create_cart(user_id)
         if not cart.items:
-            await message.answer("Your cart is empty! Add some items before checking out. 🛒")
+            await message.answer(texts.CART_EMPTY_CHECKOUT)
             return
         await state.set_state(ShopStates.collecting_name)
         await state.update_data(checkout_order_id=cart.id)
-        await message.answer(
-            "Great! Let's get your order shipped. 📦\n\n"
-            "First, please enter your *full name* for the shipping label:",
-            parse_mode="Markdown",
-        )
+        await message.answer(texts.CHECKOUT_ASK_NAME, parse_mode="Markdown")
 
 
 @router.message(ShopStates.browsing)
 async def handle_chat(message: Message, state: FSMContext):
     if not message.text:
-        await message.answer("Please send me a text message. 😊")
+        await message.answer(texts.TEXT_ONLY)
         return
 
     data = await state.get_data()
@@ -191,12 +184,8 @@ async def cmd_checkout(message: Message, state: FSMContext):
     from services.cart_service import get_or_create_cart
     cart = await get_or_create_cart(message.from_user.id)
     if not cart.items:
-        await message.answer("Your cart is empty! Browse our products first. 🛒")
+        await message.answer(texts.CART_EMPTY_BROWSE)
         return
     await state.set_state(ShopStates.collecting_name)
     await state.update_data(checkout_order_id=cart.id)
-    await message.answer(
-        "Let's get your order shipped! 📦\n\n"
-        "Please enter your *full name* for the shipping label:",
-        parse_mode="Markdown",
-    )
+    await message.answer(texts.CHECKOUT_START, parse_mode="Markdown")

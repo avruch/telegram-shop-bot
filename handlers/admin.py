@@ -3,6 +3,7 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery
 from config import settings
 from services.order_service import confirm_payment, reject_payment, format_order_summary
+import texts
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -23,28 +24,17 @@ async def cb_admin_confirm(query: CallbackQuery):
         await query.answer("Order not found.", show_alert=True)
         return
 
-    # Notify customer
     try:
         await query.bot.send_message(
             chat_id=user_id,
-            text=(
-                f"🎉 *Your payment has been confirmed!*\n\n"
-                f"{format_order_summary(order)}\n\n"
-                f"Your order is now being prepared for shipping. "
-                f"Thank you for shopping with us! 💙"
-            ),
+            text=texts.CUSTOMER_ORDER_CONFIRMED.format(summary=format_order_summary(order)),
             parse_mode="Markdown",
         )
     except Exception as e:
         logger.error(f"Failed to notify customer {user_id}: {e}")
 
-    # Update admin message
     await query.message.edit_caption(
-        caption=(
-            f"✅ *Payment CONFIRMED — Order #{order_id}*\n\n"
-            f"{format_order_summary(order)}\n\n"
-            f"Customer notified."
-        ),
+        caption=texts.ADMIN_CONFIRMED.format(order_id=order_id, summary=format_order_summary(order)),
         reply_markup=None,
         parse_mode="Markdown",
     )
@@ -66,25 +56,17 @@ async def cb_admin_reject(query: CallbackQuery):
         await query.answer("Order not found.", show_alert=True)
         return
 
-    # Notify customer
     try:
         await query.bot.send_message(
             chat_id=user_id,
-            text=(
-                f"❌ *Payment Verification Failed — Order #{order_id}*\n\n"
-                f"We were unable to verify your payment. This could be due to:\n"
-                f"• Incorrect amount sent\n"
-                f"• Screenshot not matching the transaction\n\n"
-                f"Your cart has been restored. Please try again or contact support."
-            ),
+            text=texts.CUSTOMER_ORDER_REJECTED.format(order_id=order_id),
             parse_mode="Markdown",
         )
     except Exception as e:
         logger.error(f"Failed to notify customer {user_id}: {e}")
 
-    # Update admin message
     await query.message.edit_caption(
-        caption=f"❌ *Payment REJECTED — Order #{order_id}*\n\nStock restored. Customer notified.",
+        caption=texts.ADMIN_REJECTED.format(order_id=order_id),
         reply_markup=None,
         parse_mode="Markdown",
     )
