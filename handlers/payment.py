@@ -1,3 +1,4 @@
+import re
 import logging
 from aiogram import Router, F
 from aiogram.types import Message
@@ -9,40 +10,48 @@ from keyboards.keyboards import admin_confirm_keyboard
 from config import settings
 import texts
 
+_PHONE_RE = re.compile(r'^\+?[\d\s\-\(\)]{7,20}$')
+
 logger = logging.getLogger(__name__)
 router = Router()
 
 
 @router.message(ShopStates.collecting_name)
 async def collect_name(message: Message, state: FSMContext):
-    if not message.text or len(message.text.strip()) < 2:
-        await message.answer(texts.CHECKOUT_INVALID_NAME)
+    name = (message.text or "").strip()
+    # Must have at least two words (first + last name)
+    if len(name.split()) < 2:
+        await message.answer(texts.CHECKOUT_INVALID_NAME, parse_mode="Markdown")
         return
-    await state.update_data(shipping_name=message.text.strip())
+    await state.update_data(shipping_name=name)
     await state.set_state(ShopStates.collecting_address)
     await message.answer(texts.CHECKOUT_ASK_ADDRESS, parse_mode="Markdown")
 
 
 @router.message(ShopStates.collecting_address)
 async def collect_address(message: Message, state: FSMContext):
-    if not message.text or len(message.text.strip()) < 5:
+    address = (message.text or "").strip()
+    # Must be long enough and contain at least one digit (street number)
+    has_digit = any(c.isdigit() for c in address)
+    if len(address) < 10 or not has_digit:
         await message.answer(texts.CHECKOUT_INVALID_ADDRESS)
         return
-    await state.update_data(shipping_address=message.text.strip())
+    await state.update_data(shipping_address=address)
     await state.set_state(ShopStates.collecting_phone)
     await message.answer(texts.CHECKOUT_ASK_PHONE, parse_mode="Markdown")
 
 
 @router.message(ShopStates.collecting_phone)
 async def collect_phone(message: Message, state: FSMContext):
-    if not message.text or len(message.text.strip()) < 7:
-        await message.answer(texts.CHECKOUT_INVALID_PHONE)
+    phone = (message.text or "").strip()
+    if not _PHONE_RE.match(phone):
+        await message.answer(texts.CHECKOUT_INVALID_PHONE, parse_mode="Markdown")
         return
 
     data = await state.get_data()
     shipping_name = data.get("shipping_name", "")
     shipping_address = data.get("shipping_address", "")
-    shipping_phone = message.text.strip()
+    shipping_phone = phone
     order_id = data.get("checkout_order_id")
 
     if not order_id:

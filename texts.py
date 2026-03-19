@@ -37,9 +37,7 @@ PRODUCT_CAPTION = (
 # ── Size collection ──────────────────────────────────────────
 ASK_SIZE = (
     "Great choice! 💍 *{product_name}*\n\n"
-    "Please type your size (e.g. *7*, *6.5*, *8*).\n"
-    "Not sure about your size? No problem — check this guide and come back:\n"
-    "👉 {ring_size_guide}"
+    "Please type your size (e.g. *7*, *6.5*, *8*):"
 )
 
 SIZE_GUIDE_REMINDER = (
@@ -66,9 +64,9 @@ CHECKOUT_ASK_PHONE = (
     "_(Include country code, e.g. +1 555 123 4567)_"
 )
 
-CHECKOUT_INVALID_NAME    = "Please enter a valid full name."
-CHECKOUT_INVALID_ADDRESS = "Please enter a valid shipping address."
-CHECKOUT_INVALID_PHONE   = "Please enter a valid phone number."
+CHECKOUT_INVALID_NAME    = "Please enter your *first and last name* (at least two words)."
+CHECKOUT_INVALID_ADDRESS = "That doesn't look like a full address. Please include street number, city, and postal code."
+CHECKOUT_INVALID_PHONE   = "Please enter a valid phone number with country code (e.g. *+1 555 123 4567*)."
 CHECKOUT_NO_ORDER        = "Something went wrong. Please start over with /checkout."
 
 PAYMENT_INSTRUCTIONS = (

@@ -113,6 +113,27 @@ async def reject_payment(order_id: int) -> Order | None:
     return await get_order(order_id)
 
 
+async def get_all_orders() -> list[Order]:
+    db = await get_db()
+    try:
+        async with db.execute("SELECT * FROM orders ORDER BY id DESC") as cursor:
+            rows = await cursor.fetchall()
+        orders = []
+        for row in rows:
+            order = Order.from_row(row)
+            async with db.execute(
+                "SELECT oi.*, p.name, p.price FROM order_items oi "
+                "JOIN products p ON oi.product_id = p.id WHERE oi.order_id = ?",
+                (order.id,),
+            ) as cursor:
+                item_rows = await cursor.fetchall()
+            order.items = [OrderItem.from_row(r) for r in item_rows]
+            orders.append(order)
+        return orders
+    finally:
+        await db.close()
+
+
 def format_order_summary(order: Order) -> str:
     lines = [f"📦 *Order #{order.id}*\n"]
     for item in order.items:

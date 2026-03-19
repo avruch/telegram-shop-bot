@@ -21,10 +21,12 @@ def register_routers():
     from handlers.cart import router as cart_router
     from handlers.payment import router as payment_router
     from handlers.admin import router as admin_router
+    from handlers.godmode import router as godmode_router
 
     # Order matters: more specific handlers first
+    dp.include_router(godmode_router) # Admin god mode (/godmode command + callbacks)
     dp.include_router(admin_router)   # Admin callbacks (no state filter)
     dp.include_router(payment_router) # Payment FSM states
-    dp.include_router(cart_router)    # Cart callbacks
+    dp.include_router(cart_router)    # Cart callbacks + collecting_size state
     dp.include_router(start_router)   # Commands (/start, /help, /cart, /products)
     dp.include_router(chat_router)    # AI chat (browsing state + /checkout)
