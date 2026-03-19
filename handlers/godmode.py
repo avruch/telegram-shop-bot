@@ -1,6 +1,6 @@
 import logging
 from aiogram import Router, F
-from aiogram.filters import Command
+from aiogram.filters import Command, or_f
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from config import settings
@@ -31,7 +31,7 @@ def _is_admin(user_id: int) -> bool:
     return user_id == settings.ADMIN_CHAT_ID
 
 
-@router.message(Command("godmode"))
+@router.message(or_f(Command("godmode"), F.text.lower() == "godmode"))
 async def cmd_godmode(message: Message):
     if not _is_admin(message.from_user.id):
         await message.answer("⛔ Unauthorized.")
