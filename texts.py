@@ -7,7 +7,6 @@
 WELCOME = """👋 Welcome to *{shop_name}*!
 
 I'm your personal shopping assistant.
-I'm here to help you find exactly what you're looking for.
 
 Just chat with me naturally! Try saying:
   _"Show me your products"_
@@ -31,7 +30,7 @@ PRODUCT_CAPTION = (
     "*{name}*\n"
     "{description}\n"
     "💲 *${price:.2f}*\n"
-    "_Made to order — tap Add to Cart and type your size_"
+    "tap Add to Cart and type your size_"
 )
 
 # ── Size collection ──────────────────────────────────────────

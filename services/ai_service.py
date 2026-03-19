@@ -11,7 +11,7 @@ genai.configure(api_key=settings.GOOGLE_API_KEY)
 
 RING_SIZE_GUIDE_URL = "https://www.ring-sizer.co/"
 
-SYSTEM_PROMPT_TEMPLATE = """You are a friendly and knowledgeable sales assistant for "{shop_name}", a handcrafted silver jewelry store. Your name is Alex.
+SYSTEM_PROMPT_TEMPLATE = """You are a friendly and knowledgeable sales assistant for "{shop_name}", a handcrafted silver jewelry store.
 
 Your personality:
 - Warm, helpful, and enthusiastic about the products
