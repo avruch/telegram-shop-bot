@@ -15,9 +15,9 @@ class Settings(BaseSettings):
     REDIS_URL: str = ""
     DATABASE_PATH: str = "shop.db"
     PAYPAL_LINK: str = "https://paypal.me/yourshop"
-    SHOP_COLLECTION_URL: str = ""
+    SHOP_COLLECTION_URL: str
     SHOP_NAME: str 
-    BANNER_FILENAME: str = ""
+    BANNER_FILENAME: str
 
 
 settings = Settings()
