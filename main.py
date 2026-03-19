@@ -48,7 +48,15 @@ async def lifespan(app: FastAPI):
     # Shutdown
     if settings.WEBHOOK_URL:
         await bot.delete_webhook()
+
+    # Close bot session and storage gracefully
     await bot.session.close()
+    try:
+        await dp.storage.close()
+        await dp.storage.wait_closed()
+    except Exception:
+        pass
+
     logger.info("Bot shutdown complete.")
 
 

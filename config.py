@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     ADMIN_CHAT_ID: int
     GOOGLE_API_KEY: str
     WEBHOOK_URL: str = ""
+    REDIS_URL: str = ""
     DATABASE_PATH: str = "shop.db"
     PAYPAL_LINK: str = "https://paypal.me/yourshop"
     SHOP_COLLECTION_URL: str = ""

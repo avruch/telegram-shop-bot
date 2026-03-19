@@ -36,6 +36,8 @@ cp .env.example .env
 # Edit .env with your actual values
 ```
 
+> 💡 Optional: set `REDIS_URL` if you want persistent FSM state across restarts (recommended for production).
+
 ### 4. Seed the database
 
 ```bash

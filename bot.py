@@ -1,9 +1,18 @@
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.fsm.storage.redis import RedisStorage
 from config import settings
 
 bot = Bot(token=settings.BOT_TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
+
+# Use Redis storage when configured (allows restarts without losing cart/checkout state).
+# Otherwise fall back to in-memory storage for easy local development.
+if settings.REDIS_URL:
+    storage = RedisStorage.from_url(settings.REDIS_URL)
+else:
+    storage = MemoryStorage()
+
+dp = Dispatcher(storage=storage)
 
 
 def register_routers():

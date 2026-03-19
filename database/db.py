@@ -7,6 +7,11 @@ DATABASE_PATH = settings.DATABASE_PATH
 async def get_db() -> aiosqlite.Connection:
     db = await aiosqlite.connect(DATABASE_PATH)
     db.row_factory = aiosqlite.Row
+
+    # Improve concurrency (multiple requests) by using WAL mode and a busy timeout.
+    # This reduces "database is locked" errors during parallel access.
+    await db.execute("PRAGMA journal_mode=WAL")
+    await db.execute("PRAGMA busy_timeout=5000")
     return db
 
 
