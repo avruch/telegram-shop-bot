@@ -31,7 +31,6 @@ def cart_keyboard(items: list[OrderItem]) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="❌", callback_data=f"cart_remove:{item.id}"),
         )
     builder.row(
-        InlineKeyboardButton(text="🗑 Clear Cart", callback_data="cart_clear"),
         InlineKeyboardButton(text="✅ Checkout", callback_data="checkout"),
     )
     return builder.as_markup()
