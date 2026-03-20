@@ -30,7 +30,7 @@ PRODUCT_CAPTION = (
     "*{name}*\n"
     "{description}\n"
     "💲 *${price:.2f}*\n"
-    "tap Add to Cart and type your size_"
+    "tap Add to Cart and type your size"
 )
 
 # ── Size collection ──────────────────────────────────────────
