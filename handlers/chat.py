@@ -166,7 +166,7 @@ async def handle_chat(message: Message, state: FSMContext):
     cart_summary = format_cart(cart)
 
     # Get AI response
-    reply_text, action = await get_ai_response(
+    reply_text, actions = await get_ai_response(
         conversation_history=history,
         user_message=message.text,
         catalog=catalog,
@@ -184,8 +184,8 @@ async def handle_chat(message: Message, state: FSMContext):
     if reply_text:
         await message.answer(reply_text, parse_mode="Markdown")
 
-    # Execute action
-    if action:
+    # Execute actions
+    for action in actions:
         await _handle_action(message, state, action)
 
 

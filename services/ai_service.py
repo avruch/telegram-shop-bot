@@ -39,9 +39,9 @@ SIZING RULES (very important):
 - Do NOT add to cart until you have a confirmed size from the customer
 
 IMPORTANT — Action System:
-When you need to perform a specific action (e.g., show a product, add to cart), include a special JSON block at the END of your response using this exact format:
+When you need to perform actions, include a single JSON array block at the END of your response using this exact format:
 
-<!--ACTION:{{"action": "ACTION_NAME", ...params}}-->
+<!--ACTIONS:[{{"action": "ACTION_NAME", ...params}}, ...]-->
 
 Available actions:
 - SHOW_PRODUCT: {{"action": "SHOW_PRODUCT", "product_id": <int>}}
@@ -58,10 +58,12 @@ Available actions:
   Use when user is ready to checkout and their cart is not empty
 
 Rules:
-1. Only include ONE action block per response
-2. Always write your conversational reply BEFORE the action block
-3. If no action is needed, omit the action block entirely
-4. NEVER add to cart without a confirmed size from the customer
+1. You may include MULTIPLE actions in the array (e.g. show two products at once, or add multiple items to cart)
+2. Always write your conversational reply BEFORE the actions block
+3. If no action is needed, omit the actions block entirely
+4. NEVER add to cart without a confirmed size from the customer for EACH item
+   - If the user wants multiple items but hasn't given sizes, ask for ALL sizes in one message before adding anything
+   - Once you have all sizes confirmed, add all items in a single ACTIONS block
 5. When user mentions checkout/order/buy, guide them through the process
 """
 
@@ -76,20 +78,22 @@ def _build_system_prompt(catalog: list[dict], cart_summary: str) -> str:
     )
 
 
-def _parse_action(response_text: str) -> tuple[str, Optional[dict]]:
-    """Extract conversational text and optional action dict from AI response."""
-    pattern = r"<!--ACTION:(.*?)-->"
+def _parse_actions(response_text: str) -> tuple[str, list[dict]]:
+    """Extract conversational text and list of actions from AI response."""
+    pattern = r"<!--ACTIONS:(.*?)-->"
     match = re.search(pattern, response_text, re.DOTALL)
     if not match:
-        return response_text.strip(), None
+        return response_text.strip(), []
 
     clean_text = response_text[: match.start()].strip()
     try:
-        action_data = json.loads(match.group(1).strip())
-        return clean_text, action_data
+        actions = json.loads(match.group(1).strip())
+        if isinstance(actions, dict):
+            actions = [actions]  # handle single action wrapped in array
+        return clean_text, actions
     except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse action JSON: {e}")
-        return clean_text, None
+        logger.warning(f"Failed to parse actions JSON: {e}")
+        return clean_text, []
 
 
 async def get_ai_response(
@@ -97,9 +101,9 @@ async def get_ai_response(
     user_message: str,
     catalog: list[dict],
     cart_summary: str,
-) -> tuple[str, Optional[dict]]:
+) -> tuple[str, list[dict]]:
     """
-    Call Gemini 1.5 Flash and return (reply_text, action_dict | None).
+    Call Gemini and return (reply_text, list of actions).
 
     conversation_history format:
         [{"role": "user"|"model", "parts": ["text"]}]
@@ -122,7 +126,7 @@ async def get_ai_response(
         raw_text = response.text
     except Exception as e:
         logger.error(f"Gemini API error: {e}")
-        return "Sorry, I'm having trouble connecting right now. Please try again in a moment.", None
+        return "Sorry, I'm having trouble connecting right now. Please try again in a moment.", []
 
-    reply_text, action = _parse_action(raw_text)
-    return reply_text, action
+    reply_text, actions = _parse_actions(raw_text)
+    return reply_text, actions
