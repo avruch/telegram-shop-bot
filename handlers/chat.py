@@ -1,6 +1,7 @@
 import logging
+import aiohttp
 from aiogram import Router
-from aiogram.types import Message
+from aiogram.types import Message, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.filters import Command
 from states.states import ShopStates
@@ -32,15 +33,19 @@ async def _send_product_card(message: Message, product_id: int):
     keyboard = product_size_keyboard(product)
     if product.image_url:
         try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(product.image_url) as resp:
+                    image_bytes = await resp.read()
+            filename = product.image_url.split("/")[-1].split("?")[0] or "product.jpg"
             await message.answer_photo(
-                product.image_url,
+                BufferedInputFile(image_bytes, filename=filename),
                 caption=caption,
                 reply_markup=keyboard,
                 parse_mode="Markdown",
             )
             return
         except Exception:
-            pass
+            logger.exception("Failed to send product image for product %s", product.id)
     await message.answer(caption, reply_markup=keyboard, parse_mode="Markdown")
 
 
