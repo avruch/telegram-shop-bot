@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     GOOGLE_API_KEY: str
     WEBHOOK_URL: str = ""
     REDIS_URL: str = ""
-    DATABASE_PATH: str = "shop.db"
+    DATABASE_URL: str = "postgresql://localhost/shop"
     PAYPAL_LINK: str = "https://paypal.me/yourshop"
     SHOP_COLLECTION_URL: str
     SHOP_NAME: str 

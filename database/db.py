@@ -1,8 +1,8 @@
 import json
-import aiosqlite
+import asyncpg
 from config import settings
 
-DATABASE_PATH = settings.DATABASE_PATH
+_pool: asyncpg.Pool | None = None
 
 SAMPLE_PRODUCTS = [
     {"name": "R0001", "description": "", "price": 160, "image_url": "https://ak94studio.carrd.co/assets/images/gallery02/0b939078.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
@@ -25,23 +25,19 @@ SAMPLE_PRODUCTS = [
 ]
 
 
-async def get_db() -> aiosqlite.Connection:
-    db = await aiosqlite.connect(DATABASE_PATH)
-    db.row_factory = aiosqlite.Row
-
-    # Improve concurrency (multiple requests) by using WAL mode and a busy timeout.
-    # This reduces "database is locked" errors during parallel access.
-    await db.execute("PRAGMA journal_mode=WAL")
-    await db.execute("PRAGMA busy_timeout=5000")
-    return db
+def get_db():
+    """Return a pool connection context manager: `async with get_db() as conn:`"""
+    return _pool.acquire()
 
 
 async def init_db():
-    async with aiosqlite.connect(DATABASE_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        await db.execute("""
+    global _pool
+    _pool = await asyncpg.create_pool(settings.DATABASE_URL)
+
+    async with _pool.acquire() as conn:
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS products (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id SERIAL PRIMARY KEY,
                 name TEXT NOT NULL,
                 description TEXT,
                 price REAL NOT NULL,
@@ -49,10 +45,10 @@ async def init_db():
                 stock_json TEXT NOT NULL DEFAULT '{}'
             )
         """)
-        await db.execute("""
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS orders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
+                id SERIAL PRIMARY KEY,
+                user_id BIGINT NOT NULL,
                 status TEXT NOT NULL DEFAULT 'Cart',
                 total_price REAL NOT NULL DEFAULT 0.0,
                 shipping_name TEXT,
@@ -62,27 +58,20 @@ async def init_db():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        await db.execute("""
+        await conn.execute("""
             CREATE TABLE IF NOT EXISTS order_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                order_id INTEGER NOT NULL,
-                product_id INTEGER NOT NULL,
+                id SERIAL PRIMARY KEY,
+                order_id INTEGER NOT NULL REFERENCES orders(id),
+                product_id INTEGER NOT NULL REFERENCES products(id),
                 size TEXT NOT NULL,
-                quantity INTEGER NOT NULL DEFAULT 1,
-                FOREIGN KEY (order_id) REFERENCES orders(id),
-                FOREIGN KEY (product_id) REFERENCES products(id)
+                quantity INTEGER NOT NULL DEFAULT 1
             )
         """)
-        await db.commit()
 
-        # Auto-seed products if table is empty (handles Railway ephemeral filesystem)
-        async with db.execute("SELECT COUNT(*) FROM products") as cur:
-            row = await cur.fetchone()
-            count = row[0]
+        # Auto-seed products if table is empty
+        count = await conn.fetchval("SELECT COUNT(*) FROM products")
         if count == 0:
-            for product in SAMPLE_PRODUCTS:
-                await db.execute(
-                    "INSERT INTO products (name, description, price, image_url, stock_json) VALUES (?, ?, ?, ?, ?)",
-                    (product["name"], product["description"], product["price"], product["image_url"], product["stock_json"]),
-                )
-            await db.commit()
+            await conn.executemany(
+                "INSERT INTO products (name, description, price, image_url, stock_json) VALUES ($1, $2, $3, $4, $5)",
+                [(p["name"], p["description"], p["price"], p["image_url"], p["stock_json"]) for p in SAMPLE_PRODUCTS],
+            )

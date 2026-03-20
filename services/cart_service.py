@@ -5,140 +5,112 @@ import texts
 
 async def get_or_create_cart(user_id: int) -> Order:
     """Get the user's active Cart order, or create one."""
-    db = await get_db()
-    try:
-        async with db.execute(
-            "SELECT * FROM orders WHERE user_id = ? AND status = 'Cart'",
-            (user_id,),
-        ) as cursor:
-            row = await cursor.fetchone()
+    async with get_db() as conn:
+        row = await conn.fetchrow(
+            "SELECT * FROM orders WHERE user_id = $1 AND status = 'Cart'",
+            user_id,
+        )
         if row:
             order = Order.from_row(row)
         else:
-            async with db.execute(
-                "INSERT INTO orders (user_id, status, total_price) VALUES (?, 'Cart', 0.0)",
-                (user_id,),
-            ) as cursor:
-                order_id = cursor.lastrowid
-            await db.commit()
+            order_id = await conn.fetchval(
+                "INSERT INTO orders (user_id, status, total_price) VALUES ($1, 'Cart', 0.0) RETURNING id",
+                user_id,
+            )
             order = Order(id=order_id, user_id=user_id, status="Cart", total_price=0.0)
-        order.items = await _load_items(db, order.id)
-        return order
-    finally:
-        await db.close()
+        order.items = await _load_items(conn, order.id)
+    return order
 
 
-async def _load_items(db, order_id: int) -> list[OrderItem]:
-    async with db.execute(
+async def _load_items(conn, order_id: int) -> list[OrderItem]:
+    rows = await conn.fetch(
         """SELECT oi.*, p.name, p.price
            FROM order_items oi
            JOIN products p ON oi.product_id = p.id
-           WHERE oi.order_id = ?""",
-        (order_id,),
-    ) as cursor:
-        rows = await cursor.fetchall()
+           WHERE oi.order_id = $1""",
+        order_id,
+    )
     return [OrderItem.from_row(r) for r in rows]
 
 
 async def add_item(user_id: int, product_id: int, size: str, quantity: int = 1) -> Order:
     """Add an item to the cart. Merges with existing items of the same product+size."""
     cart = await get_or_create_cart(user_id)
-    db = await get_db()
-    try:
-        # Check if item already in cart
-        async with db.execute(
-            "SELECT * FROM order_items WHERE order_id = ? AND product_id = ? AND size = ?",
-            (cart.id, product_id, size),
-        ) as cursor:
-            existing = await cursor.fetchone()
-
-        if existing:
-            new_qty = existing["quantity"] + quantity
-            await db.execute(
-                "UPDATE order_items SET quantity = ? WHERE id = ?",
-                (new_qty, existing["id"]),
+    async with get_db() as conn:
+        async with conn.transaction():
+            existing = await conn.fetchrow(
+                "SELECT * FROM order_items WHERE order_id = $1 AND product_id = $2 AND size = $3",
+                cart.id, product_id, size,
             )
-        else:
-            await db.execute(
-                "INSERT INTO order_items (order_id, product_id, size, quantity) VALUES (?, ?, ?, ?)",
-                (cart.id, product_id, size, quantity),
-            )
-
-        await _recalculate_total(db, cart.id)
-        await db.commit()
-    finally:
-        await db.close()
-
+            if existing:
+                new_qty = existing["quantity"] + quantity
+                await conn.execute(
+                    "UPDATE order_items SET quantity = $1 WHERE id = $2",
+                    new_qty, existing["id"],
+                )
+            else:
+                await conn.execute(
+                    "INSERT INTO order_items (order_id, product_id, size, quantity) VALUES ($1, $2, $3, $4)",
+                    cart.id, product_id, size, quantity,
+                )
+            await _recalculate_total(conn, cart.id)
     return await get_or_create_cart(user_id)
 
 
 async def remove_item(order_item_id: int, user_id: int) -> Order:
-    db = await get_db()
-    try:
-        async with db.execute(
-            "SELECT oi.order_id FROM order_items oi JOIN orders o ON oi.order_id = o.id "
-            "WHERE oi.id = ? AND o.user_id = ? AND o.status = 'Cart'",
-            (order_item_id, user_id),
-        ) as cursor:
-            row = await cursor.fetchone()
-        if row:
-            await db.execute("DELETE FROM order_items WHERE id = ?", (order_item_id,))
-            await _recalculate_total(db, row["order_id"])
-            await db.commit()
-    finally:
-        await db.close()
+    async with get_db() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                "SELECT oi.order_id FROM order_items oi JOIN orders o ON oi.order_id = o.id "
+                "WHERE oi.id = $1 AND o.user_id = $2 AND o.status = 'Cart'",
+                order_item_id, user_id,
+            )
+            if row:
+                await conn.execute("DELETE FROM order_items WHERE id = $1", order_item_id)
+                await _recalculate_total(conn, row["order_id"])
     return await get_or_create_cart(user_id)
 
 
 async def update_item_quantity(order_item_id: int, user_id: int, delta: int) -> Order:
     """Increment or decrement item quantity by delta. Removes item if quantity reaches 0."""
-    db = await get_db()
-    try:
-        async with db.execute(
-            "SELECT oi.*, o.id as order_id FROM order_items oi "
-            "JOIN orders o ON oi.order_id = o.id "
-            "WHERE oi.id = ? AND o.user_id = ? AND o.status = 'Cart'",
-            (order_item_id, user_id),
-        ) as cursor:
-            row = await cursor.fetchone()
-        if row:
-            new_qty = row["quantity"] + delta
-            if new_qty <= 0:
-                await db.execute("DELETE FROM order_items WHERE id = ?", (order_item_id,))
-            else:
-                await db.execute(
-                    "UPDATE order_items SET quantity = ? WHERE id = ?",
-                    (new_qty, order_item_id),
-                )
-            await _recalculate_total(db, row["order_id"])
-            await db.commit()
-    finally:
-        await db.close()
+    async with get_db() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                "SELECT oi.*, o.id as order_id FROM order_items oi "
+                "JOIN orders o ON oi.order_id = o.id "
+                "WHERE oi.id = $1 AND o.user_id = $2 AND o.status = 'Cart'",
+                order_item_id, user_id,
+            )
+            if row:
+                new_qty = row["quantity"] + delta
+                if new_qty <= 0:
+                    await conn.execute("DELETE FROM order_items WHERE id = $1", order_item_id)
+                else:
+                    await conn.execute(
+                        "UPDATE order_items SET quantity = $1 WHERE id = $2",
+                        new_qty, order_item_id,
+                    )
+                await _recalculate_total(conn, row["order_id"])
     return await get_or_create_cart(user_id)
 
 
 async def clear_cart(user_id: int) -> Order:
     cart = await get_or_create_cart(user_id)
-    db = await get_db()
-    try:
-        await db.execute("DELETE FROM order_items WHERE order_id = ?", (cart.id,))
-        await db.execute("UPDATE orders SET total_price = 0.0 WHERE id = ?", (cart.id,))
-        await db.commit()
-    finally:
-        await db.close()
+    async with get_db() as conn:
+        async with conn.transaction():
+            await conn.execute("DELETE FROM order_items WHERE order_id = $1", cart.id)
+            await conn.execute("UPDATE orders SET total_price = 0.0 WHERE id = $1", cart.id)
     return await get_or_create_cart(user_id)
 
 
-async def _recalculate_total(db, order_id: int):
-    async with db.execute(
-        "SELECT SUM(oi.quantity * p.price) as total "
+async def _recalculate_total(conn, order_id: int):
+    total = await conn.fetchval(
+        "SELECT SUM(oi.quantity * p.price) "
         "FROM order_items oi JOIN products p ON oi.product_id = p.id "
-        "WHERE oi.order_id = ?",
-        (order_id,),
-    ) as cursor:
-        row = await cursor.fetchone()
-    total = row["total"] or 0.0
-    await db.execute("UPDATE orders SET total_price = ? WHERE id = ?", (total, order_id))
+        "WHERE oi.order_id = $1",
+        order_id,
+    ) or 0.0
+    await conn.execute("UPDATE orders SET total_price = $1 WHERE id = $2", total, order_id)
 
 
 def format_cart(order: Order) -> str:
