@@ -29,14 +29,15 @@ Or just chat naturally — I understand plain English! 😊"""
 PRODUCT_CAPTION = (
     "*{name}*\n"
     "{description}\n"
-    "💲 *${price:.2f}*\n"
-    "tap Add to Cart and type your size"
+    "💲 *${price:.2f}*"
 )
 
 # ── Size collection ──────────────────────────────────────────
 ASK_SIZE = (
     "Great choice! 💍 *{product_name}*\n\n"
-    "Please type your size (e.g. *7*, *6.5*, *8*):"
+    "Please type your size (e.g. *7*, *6.5*, *8*):\n\n"
+    "Not sure of your size? Use our free sizing tool:\n"
+    "👉 {ring_size_guide}"
 )
 
 SIZE_GUIDE_REMINDER = (

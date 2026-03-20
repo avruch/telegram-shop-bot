@@ -149,7 +149,7 @@ async def cb_want_product(query: CallbackQuery, state: FSMContext):
     await state.set_state(ShopStates.collecting_size)
     await state.update_data(pending_product_id=product_id, pending_product_name=product.name)
     await query.message.answer(
-        texts.ASK_SIZE.format(product_name=product.name),
+        texts.ASK_SIZE.format(product_name=product.name, ring_size_guide=RING_SIZE_GUIDE_URL),
         parse_mode="Markdown",
     )
     await query.answer()
