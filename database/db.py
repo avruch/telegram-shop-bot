@@ -1,6 +1,9 @@
 import json
+import logging
 import asyncpg
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 _pool: asyncpg.Pool | None = None
 
@@ -28,6 +31,14 @@ SAMPLE_PRODUCTS = [
 def get_db():
     """Return a pool connection context manager: `async with get_db() as conn:`"""
     return _pool.acquire()
+
+
+async def seed_products(conn: asyncpg.Connection, products: list[dict]) -> None:
+    """Insert a list of product dicts into the products table."""
+    await conn.executemany(
+        "INSERT INTO products (name, description, price, image_url, stock_json) VALUES ($1, $2, $3, $4, $5)",
+        [(p["name"], p["description"], p["price"], p["image_url"], p["stock_json"]) for p in products],
+    )
 
 
 async def init_db():
@@ -71,7 +82,31 @@ async def init_db():
         # Auto-seed products if table is empty
         count = await conn.fetchval("SELECT COUNT(*) FROM products")
         if count == 0:
-            await conn.executemany(
-                "INSERT INTO products (name, description, price, image_url, stock_json) VALUES ($1, $2, $3, $4, $5)",
-                [(p["name"], p["description"], p["price"], p["image_url"], p["stock_json"]) for p in SAMPLE_PRODUCTS],
-            )
+            # Try to seed from Google Sheets first; fall back to SAMPLE_PRODUCTS
+            from services.sheets_service import fetch_products_from_sheets
+
+            products_to_seed: list[dict] = []
+            try:
+                sheets_products = await fetch_products_from_sheets()
+                if sheets_products:
+                    products_to_seed = sheets_products
+                    logger.info(
+                        f"init_db: Seeding {len(products_to_seed)} product(s) from Google Sheets."
+                    )
+                else:
+                    logger.info(
+                        "init_db: Google Sheets returned no products — falling back to SAMPLE_PRODUCTS."
+                    )
+            except Exception as exc:
+                logger.warning(
+                    f"init_db: Failed to fetch from Google Sheets ({exc}) — "
+                    "falling back to SAMPLE_PRODUCTS."
+                )
+
+            if not products_to_seed:
+                products_to_seed = SAMPLE_PRODUCTS
+                logger.info(
+                    f"init_db: Seeding {len(products_to_seed)} product(s) from SAMPLE_PRODUCTS (fallback)."
+                )
+
+            await seed_products(conn, products_to_seed)
