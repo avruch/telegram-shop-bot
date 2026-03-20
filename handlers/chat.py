@@ -33,8 +33,13 @@ async def _send_product_card(message: Message, product_id: int):
     keyboard = product_size_keyboard(product)
     if product.image_url:
         try:
-            async with aiohttp.ClientSession() as session:
+            headers = {
+                "Referer": "https://ak94studio.carrd.co/",
+                "User-Agent": "Mozilla/5.0 (compatible; TelegramBot/1.0)",
+            }
+            async with aiohttp.ClientSession(headers=headers) as session:
                 async with session.get(product.image_url) as resp:
+                    resp.raise_for_status()
                     image_bytes = await resp.read()
             filename = product.image_url.split("/")[-1].split("?")[0] or "product.jpg"
             await message.answer_photo(
