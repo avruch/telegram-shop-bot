@@ -1,7 +1,28 @@
+import json
 import aiosqlite
 from config import settings
 
 DATABASE_PATH = settings.DATABASE_PATH
+
+SAMPLE_PRODUCTS = [
+    {"name": "R0001", "description": "", "price": 160, "image_url": "https://ak94studio.carrd.co/assets/images/gallery02/0b939078.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
+    {"name": "R0002", "description": "", "price": 130, "image_url": "https://ak94studio.carrd.co/assets/images/gallery02/1655d32a.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
+    {"name": "R0004", "description": "", "price": 150, "image_url": "https://ak94studio.carrd.co/assets/images/gallery02/f4e165d4.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
+    {"name": "R0003", "description": "", "price": 200, "image_url": "https://ak94studio.carrd.co/assets/images/gallery02/65651711.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
+    {"name": "R0005", "description": "", "price": 160, "image_url": "https://ak94studio.carrd.co/assets/images/gallery02/31c756c7.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
+    {"name": "R0006", "description": "", "price": 130, "image_url": "https://ak94studio.carrd.co/assets/images/gallery02/8ca59476.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
+    {"name": "R0007", "description": "", "price": 140, "image_url": "https://ak94studio.carrd.co/assets/images/gallery02/211667a2.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
+    {"name": "R0008", "description": "", "price": 130, "image_url": "https://ak94studio.carrd.co/assets/images/gallery02/5d8eae8c.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
+    {"name": "R0009", "description": "", "price": 160, "image_url": "https://ak94studio.carrd.co/assets/images/gallery02/911f6909.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
+    {"name": "R010",  "description": "", "price": 150, "image_url": "https://ak94studio.carrd.co/assets/images/gallery02/084488a8_original.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
+    {"name": "R011",  "description": "", "price": 200, "image_url": "https://ak94studio.carrd.co/assets/images/gallery02/a4b11990_original.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
+    {"name": "G0001", "description": "", "price": 60,  "image_url": "https://ak94studio.carrd.co/assets/images/gallery03/f3eecb51.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
+    {"name": "G0002", "description": "", "price": 70,  "image_url": "https://ak94studio.carrd.co/assets/images/gallery03/3efe7bb1.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
+    {"name": "G0003", "description": "", "price": 60,  "image_url": "https://ak94studio.carrd.co/assets/images/gallery03/9b23d93e.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
+    {"name": "N0001", "description": "", "price": 50,  "image_url": "https://ak94studio.carrd.co/assets/images/gallery01/2ccce319.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
+    {"name": "N0002", "description": "", "price": 65,  "image_url": "https://ak94studio.carrd.co/assets/images/gallery01/4446aa46.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
+    {"name": "N0003", "description": "", "price": 100, "image_url": "https://ak94studio.carrd.co/assets/images/gallery01/da44ac0d.jpg?v=73a58a5a", "stock_json": json.dumps({"ONE SIZE": 10})},
+]
 
 
 async def get_db() -> aiosqlite.Connection:
@@ -53,3 +74,15 @@ async def init_db():
             )
         """)
         await db.commit()
+
+        # Auto-seed products if table is empty (handles Railway ephemeral filesystem)
+        async with db.execute("SELECT COUNT(*) FROM products") as cur:
+            row = await cur.fetchone()
+            count = row[0]
+        if count == 0:
+            for product in SAMPLE_PRODUCTS:
+                await db.execute(
+                    "INSERT INTO products (name, description, price, image_url, stock_json) VALUES (?, ?, ?, ?, ?)",
+                    (product["name"], product["description"], product["price"], product["image_url"], product["stock_json"]),
+                )
+            await db.commit()
