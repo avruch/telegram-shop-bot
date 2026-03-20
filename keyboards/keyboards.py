@@ -23,10 +23,12 @@ def cart_keyboard(items: list[OrderItem]) -> InlineKeyboardMarkup:
         name = item.product_name or f"Product #{item.product_id}"
         builder.row(
             InlineKeyboardButton(text=f"➖", callback_data=f"cart_dec:{item.id}"),
-            InlineKeyboardButton(
-                text=f"{item.quantity}x {name} ({item.size})",
-                callback_data="noop",
-            ),
+
+            #InlineKeyboardButton(
+            #   text=f"{item.quantity}x {name} ({item.size})",
+            #   callback_data="noop",
+            #),
+
             InlineKeyboardButton(text=f"➕", callback_data=f"cart_inc:{item.id}"),
             InlineKeyboardButton(text="❌", callback_data=f"cart_remove:{item.id}"),
         )
