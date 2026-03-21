@@ -47,6 +47,7 @@ Authentication
   and let gspread handle auth automatically via GOOGLE_APPLICATION_CREDENTIALS.
 """
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -59,10 +60,15 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 _SHEETS_BASE = "https://sheets.googleapis.com/v4/spreadsheets"
+_SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
 # Tab names inside the export spreadsheet
 _ORDERS_TAB = "Orders"
 _INVENTORY_TAB = "Inventory"
+
+# Cached service account credentials (refreshed automatically when expired)
+_sa_credentials = None
+_sa_lock = asyncio.Lock()
 
 
 def _is_export_configured() -> bool:
@@ -71,13 +77,59 @@ def _is_export_configured() -> bool:
     return bool(export_id) and export_id != "YOUR_EXPORT_SHEET_ID"
 
 
-def _api_key() -> Optional[str]:
-    key = getattr(settings, "GOOGLE_API_KEY", "")
-    return key if key and key != "YOUR_GOOGLE_API_KEY" else None
-
-
 def _now_str() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+
+
+async def _get_access_token() -> Optional[str]:
+    """
+    Return a valid OAuth2 Bearer token from the service account JSON stored in
+    GOOGLE_SERVICE_ACCOUNT_JSON. Returns None if the env var is not set.
+    Token refresh is synchronous (google-auth) so it runs in a thread executor.
+    """
+    global _sa_credentials
+
+    sa_json_str = getattr(settings, "GOOGLE_SERVICE_ACCOUNT_JSON", "")
+    if not sa_json_str:
+        logger.warning(
+            "sheets_export: GOOGLE_SERVICE_ACCOUNT_JSON is not set — cannot authenticate writes."
+        )
+        return None
+
+    async with _sa_lock:
+        if _sa_credentials is None:
+            try:
+                from google.oauth2 import service_account
+                info = json.loads(sa_json_str)
+                _sa_credentials = service_account.Credentials.from_service_account_info(
+                    info, scopes=_SCOPES
+                )
+            except Exception as exc:
+                logger.error(f"sheets_export: Failed to parse GOOGLE_SERVICE_ACCOUNT_JSON: {exc}")
+                return None
+
+        if not _sa_credentials.valid:
+            try:
+                from google.auth.transport.requests import Request
+                await asyncio.get_event_loop().run_in_executor(
+                    None, _sa_credentials.refresh, Request()
+                )
+            except Exception as exc:
+                logger.error(f"sheets_export: Failed to refresh service account token: {exc}")
+                return None
+
+    return _sa_credentials.token
+
+
+async def _auth_headers() -> dict:
+    """Return Authorization header dict. Raises if no credentials are available."""
+    token = await _get_access_token()
+    if not token:
+        raise RuntimeError(
+            "No service account credentials available. "
+            "Set GOOGLE_SERVICE_ACCOUNT_JSON in your environment."
+        )
+    return {"Authorization": f"Bearer {token}"}
 
 
 # ---------------------------------------------------------------------------
@@ -87,17 +139,12 @@ def _now_str() -> str:
 async def _sheets_get(path: str, params: Optional[dict] = None) -> Optional[dict]:
     """GET request to the Sheets API. Returns parsed JSON or None on error."""
     url = f"{_SHEETS_BASE}/{settings.GOOGLE_SHEETS_EXPORT_ID}{path}"
-    req_params: dict = {}
-    if params:
-        req_params.update(params)
-    api_key = _api_key()
-    if api_key:
-        req_params["key"] = api_key
 
     try:
-        async with aiohttp.ClientSession() as session:
+        headers = await _auth_headers()
+        async with aiohttp.ClientSession(headers=headers) as session:
             async with session.get(
-                url, params=req_params, timeout=aiohttp.ClientTimeout(total=15)
+                url, params=params or {}, timeout=aiohttp.ClientTimeout(total=15)
             ) as resp:
                 if resp.status != 200:
                     body = await resp.text()
@@ -114,19 +161,14 @@ async def _sheets_get(path: str, params: Optional[dict] = None) -> Optional[dict
 async def _sheets_post(path: str, payload: dict, params: Optional[dict] = None) -> Optional[dict]:
     """POST request to the Sheets API. Returns parsed JSON or None on error."""
     url = f"{_SHEETS_BASE}/{settings.GOOGLE_SHEETS_EXPORT_ID}{path}"
-    req_params: dict = {}
-    if params:
-        req_params.update(params)
-    api_key = _api_key()
-    if api_key:
-        req_params["key"] = api_key
 
     try:
-        async with aiohttp.ClientSession() as session:
+        headers = await _auth_headers()
+        async with aiohttp.ClientSession(headers=headers) as session:
             async with session.post(
                 url,
                 json=payload,
-                params=req_params,
+                params=params or {},
                 timeout=aiohttp.ClientTimeout(total=15),
             ) as resp:
                 if resp.status not in (200, 201):
@@ -144,19 +186,14 @@ async def _sheets_post(path: str, payload: dict, params: Optional[dict] = None) 
 async def _sheets_put(path: str, payload: dict, params: Optional[dict] = None) -> Optional[dict]:
     """PUT request to the Sheets API. Returns parsed JSON or None on error."""
     url = f"{_SHEETS_BASE}/{settings.GOOGLE_SHEETS_EXPORT_ID}{path}"
-    req_params: dict = {}
-    if params:
-        req_params.update(params)
-    api_key = _api_key()
-    if api_key:
-        req_params["key"] = api_key
 
     try:
-        async with aiohttp.ClientSession() as session:
+        headers = await _auth_headers()
+        async with aiohttp.ClientSession(headers=headers) as session:
             async with session.put(
                 url,
                 json=payload,
-                params=req_params,
+                params=params or {},
                 timeout=aiohttp.ClientTimeout(total=15),
             ) as resp:
                 if resp.status != 200:

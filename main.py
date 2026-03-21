@@ -18,6 +18,7 @@ from aiogram.types import Update
 from bot import bot, dp, register_routers
 from database.db import init_db
 from config import settings
+from routers.admin_web import router as admin_web_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -61,6 +62,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan, title="Telegram Shop Bot")
+app.include_router(admin_web_router)
 
 
 @app.post(WEBHOOK_PATH)
