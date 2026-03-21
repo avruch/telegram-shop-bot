@@ -11,6 +11,8 @@ An intelligent Telegram shopping bot that acts as a personal sales assistant usi
 - **Checkout flow**: FSM-guided shipping info collection
 - **Payment verification**: PayPal link + screenshot upload → admin review
 - **Admin panel**: Confirm/reject payments directly in Telegram
+- **Google Sheets import**: Load/refresh the product catalog from a Google Sheet
+- **Google Sheets export**: Sync orders and inventory to a Google Sheet in real time
 
 ## Setup
 
@@ -21,6 +23,8 @@ An intelligent Telegram shopping bot that acts as a personal sales assistant usi
 | `BOT_TOKEN` | Talk to [@BotFather](https://t.me/BotFather) on Telegram |
 | `ADMIN_CHAT_ID` | Message [@userinfobot](https://t.me/userinfobot) — use your personal ID |
 | `GOOGLE_API_KEY` | [Google AI Studio](https://aistudio.google.com/app/apikey) |
+| `GOOGLE_SHEETS_ID` | ID from your product catalog sheet URL (`/spreadsheets/d/<ID>/edit`) |
+| `GOOGLE_SHEETS_EXPORT_ID` | ID from your export sheet URL (for orders/inventory export) |
 
 ### 2. Install dependencies
 
@@ -90,10 +94,12 @@ telegram-shop-bot/
 ├── keyboards/
 │   └── keyboards.py     # Inline keyboard builders
 ├── services/
-│   ├── ai_service.py    # Gemini 1.5 Flash integration
-│   ├── cart_service.py  # Cart CRUD operations
-│   ├── order_service.py # Order lifecycle management
-│   └── inventory_service.py  # Stock management
+│   ├── ai_service.py           # Gemini 1.5 Flash integration
+│   ├── cart_service.py         # Cart CRUD operations
+│   ├── order_service.py        # Order lifecycle management
+│   ├── inventory_service.py    # Stock management
+│   ├── sheets_service.py       # Google Sheets product import
+│   └── sheets_export_service.py # Google Sheets order/inventory export
 └── handlers/
     ├── start.py         # /start, /help, /cart, /products
     ├── chat.py          # AI-powered main chat (browsing state)
@@ -140,11 +146,45 @@ Each user message goes through this pipeline:
                           └─► [Reject] → Stock restored, customer notified
 ```
 
+## Google Sheets Integration
+
+### Product Catalog Import
+
+Set `GOOGLE_SHEETS_ID` in `.env` to pull products from a Google Sheet. Sheet format (row 1 is a header, data from row 2):
+
+| Column A | Column B | Column C | Column D | Column E |
+|---|---|---|---|---|
+| Name | Description | Price | Image URL | Stock |
+
+Stock can be a JSON object (`{"S": 5, "M": 10}`) or a plain integer (treated as `{"ONE SIZE": N}`).
+
+- **Public sheet**: Share as "Anyone with the link (Viewer)" — no extra credentials needed.
+- **Private sheet**: Also requires a valid `GOOGLE_API_KEY` from Google Cloud.
+
+Refresh products at runtime (admin only):
+```
+/refresh_products
+```
+Falls back to `SAMPLE_PRODUCTS` if the sheet is unconfigured or returns no rows.
+
+### Orders & Inventory Export
+
+Set `GOOGLE_SHEETS_EXPORT_ID` to a separate spreadsheet that has two tabs named **Orders** and **Inventory**. The export sheet requires authenticated write access (service account via `GOOGLE_APPLICATION_CREDENTIALS` is recommended).
+
+Orders and inventory are updated automatically when payments are confirmed/rejected. Manual admin commands:
+
+```
+/export_orders      — full re-export of all submitted orders to the Orders tab
+/export_inventory   — snapshot of current stock to the Inventory tab
+```
+
 ## Customizing Products
 
 Edit `database/seed.py` and update the `SAMPLE_PRODUCTS` list, then re-run:
 ```bash
 python database/seed.py
 ```
+
+Or connect a Google Sheet and run `/refresh_products` — see [Google Sheets Integration](#google-sheets-integration) above.
 
 Products support flexible size keys: `"S"`, `"M"`, `"L"`, `"XL"`, `"ONE SIZE"`, etc.
