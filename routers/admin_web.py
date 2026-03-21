@@ -93,6 +93,9 @@ def _page(title: str, body: str, active: str = "") -> HTMLResponse:
     .badge-paid {{ background: #d1fae5; color: #065f46; }}
     .badge-cart {{ background: #e5e7eb; color: #374151; }}
     .badge-rejected {{ background: #fee2e2; color: #991b1b; }}
+    .badge-waiting {{ background: #fde68a; color: #78350f; }}
+    .badge-sent {{ background: #bfdbfe; color: #1e40af; }}
+    .badge-delivered {{ background: #bbf7d0; color: #14532d; }}
     input, select, textarea {{ border: 1px solid #ddd; border-radius: 6px;
       padding: 7px 10px; font-size: 13px; width: 100%; outline: none; }}
     input:focus, select:focus, textarea:focus {{ border-color: #4f46e5; }}
@@ -132,12 +135,25 @@ def _page(title: str, body: str, active: str = "") -> HTMLResponse:
     return HTMLResponse(html)
 
 
+ORDER_STATUSES = [
+    "Pending",
+    "Paid",
+    "Waiting for Material",
+    "Sent",
+    "Delivered",
+    "Rejected",
+]
+
+
 def _badge(status: str) -> str:
     cls = {
         "Pending": "badge-pending",
         "Paid": "badge-paid",
         "Cart": "badge-cart",
         "Rejected": "badge-rejected",
+        "Waiting for Material": "badge-waiting",
+        "Sent": "badge-sent",
+        "Delivered": "badge-delivered",
     }.get(status, "badge-cart")
     return f'<span class="badge {cls}">{status}</span>'
 
@@ -240,10 +256,22 @@ async def orders_page(admin_session: Optional[str] = Cookie(default=None)):
         rows_html = ""
         for o in orders:
             created = str(o["created_at"])[:16] if o["created_at"] else "—"
+            options = "".join(
+                f'<option value="{s}" {"selected" if s == o["status"] else ""}>{s}</option>'
+                for s in ORDER_STATUSES
+            )
             rows_html += f"""<tr>
               <td>#{o['id']}</td>
               <td>{o['user_id']}</td>
-              <td>{_badge(o['status'])}</td>
+              <td>
+                <form method="post" action="/admin/orders/{o['id']}/status"
+                  style="display:flex;gap:6px;align-items:center;">
+                  <select name="status" style="padding:4px 6px;font-size:12px;width:auto;">
+                    {options}
+                  </select>
+                  <button class="btn btn-primary btn-sm" type="submit">Save</button>
+                </form>
+              </td>
               <td>${o['total_price']:.2f}</td>
               <td>{o['items_str'] or '—'}</td>
               <td>{o['shipping_name'] or '—'}</td>
@@ -268,6 +296,26 @@ async def orders_page(admin_session: Optional[str] = Cookie(default=None)):
     <script>setTimeout(() => location.reload(), 10000);</script>
     """
     return _page("Orders", body, active="orders")
+
+
+@router.post("/orders/{order_id}/status")
+async def order_update_status(
+    order_id: int,
+    admin_session: Optional[str] = Cookie(default=None),
+    status: str = Form(...),
+):
+    redirect = _login_required(admin_session)
+    if redirect:
+        return redirect
+
+    if status not in ORDER_STATUSES:
+        return RedirectResponse("/admin/orders", status_code=302)
+
+    async with get_db() as conn:
+        await conn.execute(
+            "UPDATE orders SET status=$1 WHERE id=$2", status, order_id
+        )
+    return RedirectResponse("/admin/orders", status_code=302)
 
 
 # ---------------------------------------------------------------------------
