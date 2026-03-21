@@ -75,6 +75,85 @@ async def cb_admin_reject(query: CallbackQuery):
     await query.answer("Payment rejected. Customer notified. ❌")
 
 
+@router.message(Command("export_orders"))
+async def cmd_export_orders(message: Message):
+    """
+    Admin-only command: /export_orders
+
+    Manually triggers a full export of all submitted orders to the "Orders"
+    tab of the configured export Google Sheet. Useful for initial population
+    or re-syncing after a sheet is recreated.
+    """
+    if message.from_user.id != settings.ADMIN_CHAT_ID:
+        await message.answer("⛔ Unauthorized.")
+        return
+
+    await message.answer("📤 Exporting all orders to Google Sheets…")
+
+    from services.sheets_export_service import export_all_orders_to_sheet
+
+    try:
+        row_count = await export_all_orders_to_sheet()
+        if row_count == 0:
+            await message.answer(
+                "⚠️ *Export completed with 0 rows.*\n\n"
+                "_Either there are no submitted orders, or the export sheet is not configured. "
+                "Check that `GOOGLE_SHEETS_EXPORT_ID` is set correctly._",
+                parse_mode="Markdown",
+            )
+        else:
+            await message.answer(
+                f"✅ *Orders exported successfully!*\n\n"
+                f"📋 Rows written: *{row_count}*",
+                parse_mode="Markdown",
+            )
+    except Exception as exc:
+        logger.error(f"export_orders: Unexpected error: {exc}")
+        await message.answer(
+            f"❌ *Export failed.*\n\n`{exc}`",
+            parse_mode="Markdown",
+        )
+
+
+@router.message(Command("export_inventory"))
+async def cmd_export_inventory(message: Message):
+    """
+    Admin-only command: /export_inventory
+
+    Manually triggers a full rewrite of the "Inventory" tab in the configured
+    export Google Sheet with the current stock levels for all products.
+    """
+    if message.from_user.id != settings.ADMIN_CHAT_ID:
+        await message.answer("⛔ Unauthorized.")
+        return
+
+    await message.answer("📤 Exporting current inventory to Google Sheets…")
+
+    from services.sheets_export_service import update_inventory_sheet
+
+    try:
+        row_count = await update_inventory_sheet()
+        if row_count == 0:
+            await message.answer(
+                "⚠️ *Export completed with 0 rows.*\n\n"
+                "_Either there are no products, or the export sheet is not configured. "
+                "Check that `GOOGLE_SHEETS_EXPORT_ID` is set correctly._",
+                parse_mode="Markdown",
+            )
+        else:
+            await message.answer(
+                f"✅ *Inventory exported successfully!*\n\n"
+                f"📦 Products written: *{row_count}*",
+                parse_mode="Markdown",
+            )
+    except Exception as exc:
+        logger.error(f"export_inventory: Unexpected error: {exc}")
+        await message.answer(
+            f"❌ *Export failed.*\n\n`{exc}`",
+            parse_mode="Markdown",
+        )
+
+
 @router.message(Command("refresh_products"))
 async def cmd_refresh_products(message: Message):
     """

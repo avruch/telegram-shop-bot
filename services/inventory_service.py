@@ -1,6 +1,9 @@
 import json
+import logging
 from database.db import get_db
 from database.models import Product
+
+logger = logging.getLogger(__name__)
 
 
 async def get_all_products() -> list[Product]:
@@ -36,6 +39,13 @@ async def deduct_stock(product_id: int, size: str, quantity: int) -> bool:
                 "UPDATE products SET stock_json = $1 WHERE id = $2",
                 json.dumps(stock), product_id,
             )
+
+    try:
+        import services.sheets_export_service as sheets_export
+        await sheets_export.update_inventory_sheet()
+    except Exception as exc:
+        logger.error(f"inventory_service: sheets inventory export failed after deduct_stock: {exc}")
+
     return True
 
 
@@ -52,6 +62,12 @@ async def restore_stock(product_id: int, size: str, quantity: int):
                 "UPDATE products SET stock_json = $1 WHERE id = $2",
                 json.dumps(stock), product_id,
             )
+
+    try:
+        import services.sheets_export_service as sheets_export
+        await sheets_export.update_inventory_sheet()
+    except Exception as exc:
+        logger.error(f"inventory_service: sheets inventory export failed after restore_stock: {exc}")
 
 
 async def get_catalog_summary() -> list[dict]:

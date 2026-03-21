@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     ADMIN_CHAT_ID: int
     GOOGLE_API_KEY: str = "YOUR_GOOGLE_API_KEY"
     GOOGLE_SHEETS_ID: str = "YOUR_GOOGLE_SHEET_ID"
+    GOOGLE_SHEETS_EXPORT_ID: str = "YOUR_EXPORT_SHEET_ID"
     WEBHOOK_URL: str = ""
     REDIS_URL: str = ""
     DATABASE_URL: str = "postgresql://localhost/shop"
