@@ -1,6 +1,7 @@
 from database.db import get_db
 from database.models import Order, OrderItem
 from services.inventory_service import deduct_stock, restore_stock
+import services.sheets_export_service as sheets_export
 
 
 async def get_order(order_id: int) -> Order | None:
@@ -58,11 +59,28 @@ async def submit_for_payment(order_id: int, screenshot_file_id: str):
     for item in order.items:
         await deduct_stock(item.product_id, item.size, item.quantity)
 
+    try:
+        await sheets_export.append_order_to_sheet(order_id)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error(
+            f"order_service: sheets export failed for order {order_id}: {exc}"
+        )
+
 
 async def confirm_payment(order_id: int) -> Order | None:
     """Mark order as Paid."""
     async with get_db() as conn:
         await conn.execute("UPDATE orders SET status = 'Paid' WHERE id = $1", order_id)
+
+    try:
+        await sheets_export.update_order_status_in_sheet(order_id)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error(
+            f"order_service: sheets status update failed for order {order_id}: {exc}"
+        )
+
     return await get_order(order_id)
 
 
@@ -80,6 +98,15 @@ async def reject_payment(order_id: int) -> Order | None:
             "UPDATE orders SET status = 'Cart', screenshot_file_id = NULL WHERE id = $1",
             order_id,
         )
+
+    try:
+        await sheets_export.update_order_status_in_sheet(order_id)
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).error(
+            f"order_service: sheets status update failed for order {order_id}: {exc}"
+        )
+
     return await get_order(order_id)
 
 
